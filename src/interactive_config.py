@@ -33,7 +33,7 @@ CONFIG2 = 0b00000001
 
 config = {"calib_cycles": 2,
           "num_stops": 2,
-          "ext_clock_freq": 8e6,
+          "ext_clock_freq": 9.95e6,
           "avg_cycles": 0,
           "mode": 1}
 
@@ -137,7 +137,7 @@ CONFIG MENU
     4. Number of Stops 
     5. Write config to chip
     6. Go back
-    
+
 Enter your choice (1-4): """
     current_config = f"\nCONFIG 1 = {CONFIG1:08b}\nCONFIG 2 = {CONFIG2:08b}"
     return input(current_config + menu)
@@ -155,7 +155,7 @@ CHIP INTERFACE MENU
     4. Take measurement - sets start measurement bit to 1.
     5. Read all registers
     6. Reset
-    
+
 Enter your choice (1-6): """
 
     return input(menu)
@@ -202,7 +202,7 @@ def config_calibration():
     1: Calibration 2 - measuring 10 CLOCK periods
     2: Calibration 2 - measuring 20 CLOCK periods
     3: Calibration 2 - measuring 40 CLOCK periods
-    
+
     Enter Calibration choice from 0 - 3, default 10\n
     """
 
@@ -238,7 +238,7 @@ def config_stop_edge():
     edge_text = """
         0: Measurement is stopped on Rising edge of STOP signal
         1: Measurement is stopped on Falling edge of STOP signal
-                    
+
         Enter Calibration choice from 0 - 1, default 0\n
         """
 
@@ -280,6 +280,7 @@ def format_time(time_s):
     else:
         return f"{time_s:.2f} s"  # seconds
 
+
 def print_tof_pretty(timing_data, computed_times):
     """
     Prints computed times alongside raw 24-bit register values for times,
@@ -306,7 +307,7 @@ def start_measurement(DEBUG=False):
     print("Starting Measurement, at a blocking call getting preempted now.")
     global CONFIG1
     write_register(0x00, CONFIG1 | 0b00000001)
-    #GPIO.wait_for_edge(int_pin, GPIO.FALLING)
+    GPIO.wait_for_edge(int_pin, GPIO.FALLING, timeout=10000)
     sleep(0.1)
     print("Measurement Complete")
 
@@ -320,7 +321,8 @@ def start_measurement(DEBUG=False):
     tof = tof_calculation_mode0(timing_data["CALIBRATION1"],
                                 timing_data["CALIBRATION2"],
                                 config["calib_cycles"],
-                                times=timing_data["TIMES"])
+                                times=timing_data["TIMES"],
+                                ext_clk_freq=config["ext_clock_freq"])
 
     print_tof_pretty(timing_data, tof)
 
@@ -420,9 +422,13 @@ def config_edge():
 
 def tof_calculation_mode0(calib1, calib2, calib2_periods, times: list, ext_clk_freq=8e6):
     cal_count = (calib2 - calib1) / (calib2_periods - 1)
+    if cal_count == 0:
+        print(cal_count)
+        cal_count += 1
     norm_lsb = (1 / ext_clk_freq) / cal_count
     tof = [time * norm_lsb for time in times]
-
+    print(
+        f"****************************************\nDEBUG\n************************************************\n NormLSB = {norm_lsb} seconds/count, ext_freq = {ext_clk_freq} Hz, Avg Counts per clock = {cal_count} ")
     return tof
 
 
